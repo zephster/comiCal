@@ -1,16 +1,17 @@
 """
 comic importer - scrapes comic sites then imports release dates into google calendar
 by brandon sachs
- 
+"""
+import requests
+from bs4 import BeautifulSoup
+
+""" 
 relevant docs i may want to read:
     http://docs.python.org/2/library/queue.html
     http://docs.python.org/2/library/pickle.html
         https://wiki.python.org/moin/UsingPickle
      
 css info paths
-    dc - .view-comics .row-1 .col-1/2/3/4 (.row-1 contains last 4 issues, in their columns, newest to oldest)
-    image - .inyards .main_area .left .latest_releases > .release_box (nth-child(1) for the latest, 2 for last month)
- 
     for marvel
         iterate over the selector
             4 times - get latest 4? issues link urls. those selectors are just divs, newest to oldest
@@ -36,14 +37,13 @@ notes/ideas/whatever
 """
  
  
-import requests
-from bs4 import BeautifulSoup
+
  
  
 base_url = {
     "dc"    : "http://www.dccomics.com/comics/",
-    "image" : "http://www.imagecomics.com/comics/series/",
-    "marvel": "http://marvel.com/comics/series/"
+    "marvel": "http://marvel.com/comics/series/",
+    "image" : "http://www.imagecomics.com/comics/series/"
 }
  
 comics = {
@@ -64,8 +64,6 @@ comics = {
     }
 }
  
- 
- 
 release_dates = {
     "dc"    : {},
     "marvel": {},
@@ -73,33 +71,68 @@ release_dates = {
 }
  
 selectors = {
-    "dc" : ".row-1 td",
-    "marvel" : ".JCMultiRow-comic_issue > .comic-item" # untested, see notes
+    "dc"     : ".row-1 td",
+    "marvel" : ".JCMultiRow-comic_issue > .comic-item", # untested, see notes
+    "image"  : ".latest_releases .release_box"
 }
  
  
  
 def main():
-    for title, url in comics["dc"].iteritems():
-        #print title, url
-        pass
+    # manual dc test
+    if len(comics["dc"]):
+        scrape_dc("Green Lantern", comics["dc"]["Green Lantern"])
+    
+    # manual marvel test
+    # if len(comics["marvel"]):
+    #     scrape_marvel("Superior Spider-Man", comics["marvel"]["Superior Spider-Man"])
+    
+    # manual image test
+    if len(comics["image"]):
+        scrape_image("The Walking Dead", comics["image"]["The Walking Dead"])
+    
+    
+    
+    
+    
+    # if len(comics["dc"]):
+    #     for title, url in comics["dc"].iteritems():
+    #         scrape_dc(title, url)
+    
+    # if len(comics["marvel"]): 
+    #     for title, url in comics["marvel"].iteritems():
+    #         scrape_marvel(title, url)
+    
+    # if len(comics["image"]):
+    #     for title, url in comics["image"].iteritems():
+    #         scrape_image(title, url)
      
-    #manual greenlantern test for now
-    scrape_dc("Green Lantern", comics["dc"]["Green Lantern"])
-    #scrape_dc("Green Lantern Corps", comics["dc"]["Green Lantern Corps"])
     print release_dates
-     
-    # for title, url in comics["dc"].iteritems():
-    #     scrape_dc(title, url)
-     
-    #to add to release dates dict
-    #release_dates["publisher here"]["series here"] = "release date here"
-    #print release_dates
      
      
 # scrape imagecomics.com
 def scrape_image(comic_title, uri):
-    pass
+    url = base_url["image"] + uri
+    print "scraping %s" % url
+    
+    try:
+        r = requests.get(url)
+        
+        try:
+            soup = BeautifulSoup(r.text.encode("utf-8"))
+            
+            for issue in soup.select(selectors["image"]):
+                info = issue.text.strip()
+                info = info.split("\n")
+                release_dates["image"][info[0]] = info[1]
+            
+        except Exception as e:
+            print "error parsing %s" % url
+            print e
+            
+    except Exception as e:
+        print "error fetching %s" % url
+        print e
  
  
 # scrape marvel.com
@@ -115,22 +148,13 @@ def scrape_dc(comic_title, uri):
     try:
         r = requests.get(url)
  
-        # count = 0
-        # for title in soup.select(".row-1 .views-field-title > .field-content a"):
-        #     print title.text
-        #     # limit to only the 2 newest issues
-        #     # count += 1
-        #     # if count >= 2:
-        #     #     break
-         
         try:
             soup = BeautifulSoup(r.text.encode("utf-8"))
              
             for issue in soup.select(selectors["dc"]):
-                title = issue.text[:-22].strip() # removes the "on sale" date
-                date  = issue.text[-13:].strip() # removes comic title
-                release_dates["dc"][title] = date
-                #print "%s is being released on %s" % (title, date)
+                issue = issue.text.strip()
+                issue = issue.split("\n")
+                release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
              
         except Exception as e:
             print "error parsing %s" % url
