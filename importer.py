@@ -79,40 +79,24 @@ selectors = {
  
  
 def main():
-    # manual dc test
-    if len(comics["dc"]):
-        scrape_dc("Green Lantern", comics["dc"]["Green Lantern"])
-    
-    # manual marvel test
-    # if len(comics["marvel"]):
-    #     scrape_marvel("Superior Spider-Man", comics["marvel"]["Superior Spider-Man"])
-    
-    # manual image test
-    if len(comics["image"]):
-        scrape_image("The Walking Dead", comics["image"]["The Walking Dead"])
+    # for publisher, titles in comics.iteritems():
+    #     if len(titles):
+    #         for name, uri in titles.iteritems():
+    #             scrape(publisher, name, uri)
+    #     else:
+    #         print "no titles to scrape in %s" % publisher
     
     
+    # manual tests
+    # scrape("dc", "Green Lantern", comics["dc"]["Green Lantern"])
+    scrape("marvel", "Superior Spider-Man", comics["marvel"]["Superior Spider-Man"])
+    # scrape("image", "The Walking Dead", comics["image"]["The Walking Dead"])
     
-    
-    
-    # if len(comics["dc"]):
-    #     for title, url in comics["dc"].iteritems():
-    #         scrape_dc(title, url)
-    
-    # if len(comics["marvel"]): 
-    #     for title, url in comics["marvel"].iteritems():
-    #         scrape_marvel(title, url)
-    
-    # if len(comics["image"]):
-    #     for title, url in comics["image"].iteritems():
-    #         scrape_image(title, url)
-     
     print release_dates
-     
-     
-# scrape imagecomics.com
-def scrape_image(comic_title, uri):
-    url = base_url["image"] + uri
+
+
+def scrape(publisher, comic_title, uri):
+    url = base_url[publisher] + uri
     print "scraping %s" % url
     
     try:
@@ -121,59 +105,40 @@ def scrape_image(comic_title, uri):
         try:
             soup = BeautifulSoup(r.text.encode("utf-8"))
             
-            for issue in soup.select(selectors["image"]):
-                info = issue.text.strip()
-                info = info.split("\n")
-                release_dates["image"][info[0]] = info[1]
+            for issue in soup.select(selectors[publisher]):
+                try:
+                    if publisher == "dc":
+                        issue = issue.text.strip()
+                        issue = issue.split("\n")
+                        release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
+                        
+                    elif publisher == "marvel":
+                        # print "publisher is marvel - %s" % url
+                        print issue
+                        print "_____________________________"
+                        
+                    elif publisher == "image":
+                        issue = issue.text.strip()
+                        issue = issue.split("\n")
+                        release_dates["image"][issue[0]] = issue[1]
+                        
+                    else:
+                        print "unsupported publisher"
+                        
+                except Exception as e:
+                    print "unable to find issue info on %s" % url
+                    print e
             
         except Exception as e:
-            print "error parsing %s" % url
+            print "unable to parse %s" % url
             print e
-            
+        
     except Exception as e:
-        print "error fetching %s" % url
+        print "unable to fetch %s" % url
         print e
- 
- 
-# scrape marvel.com
-def scrape_marvel(comic_title, uri):
-    pass
- 
-     
-# scrape dccomics.com
-def scrape_dc(comic_title, uri):
-    url = base_url["dc"] + uri
-    print "scraping %s" % url
-     
-    try:
-        r = requests.get(url)
- 
-        try:
-            soup = BeautifulSoup(r.text.encode("utf-8"))
-             
-            for issue in soup.select(selectors["dc"]):
-                issue = issue.text.strip()
-                issue = issue.split("\n")
-                release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
-             
-        except Exception as e:
-            print "error parsing %s" % url
-            print e
-         
-    except Exception as e:
-        print "error fetching %s" % url
-        print e
- 
- 
- 
- 
-     
-     
-     
-     
-     
-     
- 
- 
+
+
+
+# init 
 if __name__ == '__main__':
   main()
