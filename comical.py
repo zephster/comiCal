@@ -35,6 +35,8 @@ notes/ideas/whatever
 
     have an option to indicate how many back-issues from the latest issue comical should check for release info
         -l --last   string (last? idunno)
+
+    have an option in gcal to check if the comic exists already (for past issues) and to correct the date if its been updated
  
     when iterating through release_dates for gcal, if possible, search for the comic title first to see if it's already in the cal, then check the date of it. if the date is wrong, re-schedule to newer scraped date
 """
@@ -82,25 +84,19 @@ selectors = {
     "image"         : ".latest_releases .release_box"
 }
 
+# make this an arg or somethin
 marvel_get_last_issues = 4
  
  
  
 def main():
-    # for publisher, titles in comics.iteritems():
-    #     if len(titles):
-    #         for name, uri in titles.iteritems():
-    #             scrape(publisher, name, uri)
-    #     else:
-    #         print "no titles to scrape in %s" % publisher
+    for publisher, titles in comics.iteritems():
+        if len(titles):
+            for name, uri in titles.iteritems():
+                scrape(publisher, name, uri)
+        else:
+            print "no titles to scrape in %s" % publisher
     
-    
-    # manual tests
-    # scrape("dc", "Green Lantern", comics["dc"]["Green Lantern"])
-    scrape("marvel", "Superior Spider-Man", comics["marvel"]["Superior Spider-Man"])
-    # scrape("image", "The Walking Dead", comics["image"]["The Walking Dead"])
-    
-    print "main() done"
     print release_dates
 
 
@@ -173,7 +169,7 @@ def scrape(publisher, comic_title, uri):
 
                     try:
                         if publisher == "dc":
-                            release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
+                            release_dates["dc"][issue[0].strip().title()] = issue[1][10:] # 10: strips "on sale" text
                             
                         elif publisher == "image":
                             release_dates["image"][issue[0]] = issue[1]
