@@ -1,5 +1,5 @@
 """
-comic importer - scrapes comic sites then imports release dates into google calendar
+comiCal - scrapes comic sites then imports release dates into google calendar
 by brandon sachs
 """
 import requests
@@ -32,6 +32,9 @@ notes/ideas/whatever
     have an option to format comic title in uppercase or camel case?
         default to camel case?
         -f --format string (uppercase|camelcase else throw)
+
+    have an option to indicate how many back-issues from the latest issue comical should check for release info
+        -l --last   string (last? idunno)
  
     when iterating through release_dates for gcal, if possible, search for the comic title first to see if it's already in the cal, then check the date of it. if the date is wrong, re-schedule to newer scraped date
 """
@@ -70,11 +73,16 @@ release_dates = {
     "image" : {}
 }
  
+# the marvel selector will ignore issues that do not have their artworks posted yet
+# they never have correct release info
 selectors = {
-    "dc"     : ".row-1 td",
-    "marvel" : ".JCMultiRow-comic_issue > .comic-item", # untested, see notes
-    "image"  : ".latest_releases .release_box"
+    "dc"            : ".row-1 td",
+    "marvel_list"   : ".JCMultiRow-comic_issue > .comic-item .row-item-image a.row-item-image-url",
+    "marvel_release": ".featured-item-meta",
+    "image"         : ".latest_releases .release_box"
 }
+
+marvel_get_last_issues = 4
  
  
  
@@ -92,50 +100,98 @@ def main():
     scrape("marvel", "Superior Spider-Man", comics["marvel"]["Superior Spider-Man"])
     # scrape("image", "The Walking Dead", comics["image"]["The Walking Dead"])
     
+    print "main() done"
     print release_dates
+
+
+
+def scrape_marvel(comic_title, url):
+    print "marvel - gathering info..."
+    last_issues = {}
+
+    try:
+        r = requests.get(url)
+
+        try:
+            soup = BeautifulSoup(r.text.encode("utf-8"))
+
+            count = 0
+            for issue in soup.select(selectors["marvel_list"]):
+                if count >= marvel_get_last_issues:
+                    break
+                issue_url = issue.get('href').strip()
+                last_issues["%s #%s" % (comic_title, issue_url[-2:])] = issue_url
+                count += 1
+
+        except Exception as e:
+            print "error parsing past issue url %s" % url
+            print e
+
+    except Exception as e:
+        print "error gathering previous issue information"
+        print e
+
+
+    for title, url in last_issues.iteritems():
+        print "marvel - getting release info for %s" % title
+        url = base_url["marvel"][:-15]+url
+
+        try:
+            r = requests.get(url)
+
+            soup = BeautifulSoup(r.text.encode("utf-8"))
+
+            for info in soup.select(selectors["marvel_release"]):
+                info = info.text.strip().split("\n")
+                date = info[0][11:]
+                release_dates["marvel"][title] = date
+
+        except Exception as e:
+            print "unable to fetch issue info %s" % title
+            print e
+
+
+
 
 
 def scrape(publisher, comic_title, uri):
     url = base_url[publisher] + uri
-    print "scraping %s" % url
-    
-    try:
-        r = requests.get(url)
-        
+
+    if publisher == "marvel":
+        scrape_marvel(comic_title, url)
+    else:
+        print "%s - getting release info for %s" % (publisher, comic_title)
         try:
-            soup = BeautifulSoup(r.text.encode("utf-8"))
+            r = requests.get(url)
             
-            for issue in soup.select(selectors[publisher]):
-                try:
-                    if publisher == "dc":
-                        issue = issue.text.strip()
-                        issue = issue.split("\n")
-                        release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
-                        
-                    elif publisher == "marvel":
-                        # print "publisher is marvel - %s" % url
-                        print issue
-                        print "_____________________________"
-                        
-                    elif publisher == "image":
-                        issue = issue.text.strip()
-                        issue = issue.split("\n")
-                        release_dates["image"][issue[0]] = issue[1]
-                        
-                    else:
-                        print "unsupported publisher"
-                        
-                except Exception as e:
-                    print "unable to find issue info on %s" % url
-                    print e
+            try:
+                soup = BeautifulSoup(r.text.encode("utf-8"))
+                
+                for issue in soup.select(selectors[publisher]):
+                    issue = issue.text.strip()
+                    issue = issue.split("\n")
+
+                    try:
+                        if publisher == "dc":
+                            release_dates["dc"][issue[0].strip()] = issue[1][10:] # 10: strips "on sale" text
+                            
+                        elif publisher == "image":
+                            release_dates["image"][issue[0]] = issue[1]
+                            
+                        else:
+                            print "unsupported publisher"
+                            
+                    except Exception as e:
+                        print "unable to find issue info on %s" % url
+                        print e
+                
+            except Exception as e:
+                print "unable to parse %s" % url
+                print e
             
         except Exception as e:
-            print "unable to parse %s" % url
+            print "unable to fetch %s" % url
             print e
-        
-    except Exception as e:
-        print "unable to fetch %s" % url
-        print e
 
 
 
