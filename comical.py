@@ -3,7 +3,8 @@ comiCal - scrapes comic sites then imports release dates into google calendar
 by brandon sachs
 """
 
-import sys # for arguments. maybe use argparse
+import sys
+import argparse
 import requests
 from bs4 import BeautifulSoup
 
@@ -21,7 +22,7 @@ css info paths
                 publish date selector: .featured-item-meta - need to parse out date
      
 notes/ideas/whatever
-    use cPickle to save/load list of comics
+    save/load list of comics
         can add sys opts to add/remove comics on-the-fly
             -a --add
                 -p --publisher  string (dc|marvel|imagine else throw)
@@ -45,13 +46,13 @@ notes/ideas/whatever
 
  
  
-base_url = {
+comic_base_urls = {
     "dc"                : "http://www.dccomics.com/comics/",
     "marvel"            : "http://marvel.com/comics/series/",
-    "image"             : "http://www.imagecomics.com/comics/series/",
-    "google_auth_scope" : "https://www.googleapis.com/auth/calendar" # NO trailing slash
+    "image"             : "http://www.imagecomics.com/comics/series/"
 }
- 
+
+# these won't be hard-coded eventually
 comics = {
     "dc" : {
         "Justice League"              : "justice-league-2011",
@@ -77,7 +78,7 @@ release_dates = {
 }
  
 # the marvel selector will ignore issues that do not have their artworks posted yet
-# they never have correct release info
+# they never have correct release info anyway
 selectors = {
     "dc"            : ".row-1 td",
     "marvel_list"   : ".JCMultiRow-comic_issue > .comic-item .row-item-image a.row-item-image-url",
@@ -85,11 +86,15 @@ selectors = {
     "image"         : ".latest_releases .release_box"
 }
 
+google_oauth = {
+    "scope"         : "https://www.googleapis.com/auth/calendar", # no trailing /
+    "client_id"     : "488080564532-iqr034it5tp32raunksro01bap1op3oi.apps.googleusercontent.com",
+    "client_secret" : "SRv6OZtPGK7_VvowZFN2LxWa",
+    "redirect_uris" : ["urn:ietf:wg:oauth:2.0:oob","oob"]
+}
+
 # make this an arg or somethin
 marvel_get_last_issues = 4
-
-
-
 
 
 
@@ -114,7 +119,6 @@ def main(argv):
     g_api = g_auth()
     
     if g_api != None:
-        print "authenticated with google"
         cal_present = g_check_comical_calendar(g_api)
         
         if cal_present != False:
@@ -141,8 +145,7 @@ def g_check_comical_calendar(g_api_obj):
         cals = calendar_list["items"]
         
         for cal in cals:
-            present = "comiCal" in cal.values()
-            if present:
+            if "comiCal" in cal.values():
                 cal_present = True
                 
         if not cal_present:
@@ -157,7 +160,7 @@ def g_check_comical_calendar(g_api_obj):
 
 
 def g_make_comical_calendar(g_api_obj):
-    print "comiCal calendar not present; creating it..."
+    print "comiCal calendar not present, creating it..."
     cal_created = False
     
     try:
@@ -177,22 +180,21 @@ def g_make_comical_calendar(g_api_obj):
 
 
 
+
 # https://developers.google.com/api-client-library/python/guide/aaa_oauth
 # https://developers.google.com/api-client-library/python/start/get_started
 def g_auth():
-    import argparse # make this global eventually when i wanna use arguments
     import httplib2
-    
     from apiclient import discovery
     from oauth2client import file
     from oauth2client import client
     from oauth2client import tools
     from oauth2client.client import OAuth2WebServerFlow
     
-    flow = OAuth2WebServerFlow(client_id="488080564532-iqr034it5tp32raunksro01bap1op3oi.apps.googleusercontent.com",
-                               client_secret="SRv6OZtPGK7_VvowZFN2LxWa",
-                               scope=base_url["google_auth_scope"],
-                               redirect_uris=["urn:ietf:wg:oauth:2.0:oob","oob"])
+    flow = OAuth2WebServerFlow(scope         = google_oauth["scope"],
+                               client_id     = google_oauth["client_id"],
+                               client_secret = google_oauth["client_secret"],
+                               redirect_uris = google_oauth["redirect_uris"])
     
     flags = {
         "auth_host_name"         : 'localhost',
@@ -200,10 +202,10 @@ def g_auth():
         "logging_level"          : 'ERROR',
         "noauth_local_webserver" : False
     }
-    flags = argparse.Namespace(**flags) # namespace for running the flow
+    flags = argparse.Namespace(**flags)
     
     # if auth credentials dont exist or are invalid, run flow (and save auth tokens)
-    tokens      = file.Storage("tokens.dat")
+    tokens      = file.Storage("comiCal_tokens.dat")
     credentials = tokens.get()
     
     if credentials is None or credentials.invalid:
@@ -221,6 +223,13 @@ def g_auth():
     except client.AccessTokenRefreshError:
         print ("The credentials have been revoked or expired, please re-run the application to re-authorize")
         return False
+
+
+
+
+
+
+
 
 
 
@@ -269,7 +278,7 @@ def scrape_marvel(comic_title, url):
 
     for title, url in last_issues.iteritems():
         print "marvel - getting release info for %s..." % title
-        url = base_url["marvel"][:-15]+url
+        url = comic_base_urls["marvel"][:-15]+url
 
         try:
             r = requests.get(url)
@@ -286,11 +295,13 @@ def scrape_marvel(comic_title, url):
             print e
 
 
+
+
 """
 Scrape Image and DC
 """
 def scrape(publisher, comic_title, uri):
-    url = base_url[publisher] + uri
+    url = comic_base_urls[publisher] + uri
 
     if publisher == "marvel":
         scrape_marvel(comic_title, url)
@@ -327,6 +338,16 @@ def scrape(publisher, comic_title, uri):
         except Exception as e:
             print "unable to fetch %s" % url
             print e
+
+
+
+
+
+
+
+
+
+
 
 
 
