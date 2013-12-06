@@ -2,6 +2,8 @@
 comiCal - scrapes comic sites then imports release dates into google calendar
 by brandon sachs
 """
+
+import sys # for arguments. maybe use argparse
 import requests
 from bs4 import BeautifulSoup
 
@@ -40,15 +42,14 @@ notes/ideas/whatever
  
     when iterating through release_dates for gcal, if possible, search for the comic title first to see if it's already in the cal, then check the date of it. if the date is wrong, re-schedule to newer scraped date
 """
- 
- 
 
  
  
 base_url = {
-    "dc"    : "http://www.dccomics.com/comics/",
-    "marvel": "http://marvel.com/comics/series/",
-    "image" : "http://www.imagecomics.com/comics/series/"
+    "dc"                : "http://www.dccomics.com/comics/",
+    "marvel"            : "http://marvel.com/comics/series/",
+    "image"             : "http://www.imagecomics.com/comics/series/",
+    "google_auth_scope" : "https://www.googleapis.com/auth/calendar" # NO trailing slash
 }
  
 comics = {
@@ -86,21 +87,159 @@ selectors = {
 
 # make this an arg or somethin
 marvel_get_last_issues = 4
- 
- 
- 
-def main():
-    for publisher, titles in comics.iteritems():
-        if len(titles):
-            for name, uri in titles.iteritems():
-                scrape(publisher, name, uri)
-        else:
-            print "no titles to scrape in %s" % publisher
+
+
+
+
+
+
+
+
+# go! 
+def main(argv):
+    # for publisher, titles in comics.iteritems():
+    #     if len(titles):
+    #         for name, uri in titles.iteritems():
+    #             scrape(publisher, name, uri)
+    #     else:
+    #         print "no titles to scrape in %s" % publisher
     
-    print release_dates
+    
+    # manually fetch one set for gcal testing
+    # scrape("dc", "Superman", comics["dc"]["Superman"])
+    # print release_dates
+    
+    
+    # auth with google now!
+    g_api = g_auth()
+    
+    if g_api != None:
+        print "authenticated with google"
+        cal_present = g_check_comical_calendar(g_api)
+        
+        if cal_present != False:
+            print "iterate through release dates and shit now!!!!!"
+            
+    else:
+        print "not authed!"
+    
+    #keep open
+    #raw_input()
 
 
 
+
+
+# checks for the presence of the comiCal calendar. if not, create it.
+# this is what comics will be labeled under
+def g_check_comical_calendar(g_api_obj):
+    print "checking for comiCal calendar..."
+    cal_present = False
+    
+    try:
+        calendar_list = g_api_obj.calendarList().list().execute()
+        cals = calendar_list["items"]
+        
+        for cal in cals:
+            present = "comiCal" in cal.values()
+            if present:
+                cal_present = True
+                
+        if not cal_present:
+            return g_make_comical_calendar(g_api_obj)
+    except Exception as e:
+        print "error fetching google calendar list"
+        print e
+        
+    return cal_present
+
+
+
+
+def g_make_comical_calendar(g_api_obj):
+    print "comiCal calendar not present; creating it..."
+    cal_created = False
+    
+    try:
+        comical = {
+            "summary" : "comiCal"
+        }
+        create = g_api_obj.calendars().insert(body=comical).execute()
+        
+        if create != False:
+            print "comiCal calendar created!"
+            cal_created = True
+    except Exception as e:
+        print "error creating comiCal calendar"
+        print e
+    
+    return cal_created
+
+
+
+# https://developers.google.com/api-client-library/python/guide/aaa_oauth
+# https://developers.google.com/api-client-library/python/start/get_started
+def g_auth():
+    import argparse # make this global eventually when i wanna use arguments
+    import httplib2
+    
+    from apiclient import discovery
+    from oauth2client import file
+    from oauth2client import client
+    from oauth2client import tools
+    from oauth2client.client import OAuth2WebServerFlow
+    
+    flow = OAuth2WebServerFlow(client_id="488080564532-iqr034it5tp32raunksro01bap1op3oi.apps.googleusercontent.com",
+                               client_secret="SRv6OZtPGK7_VvowZFN2LxWa",
+                               scope=base_url["google_auth_scope"],
+                               redirect_uris=["urn:ietf:wg:oauth:2.0:oob","oob"])
+    
+    flags = {
+        "auth_host_name"         : 'localhost',
+        "auth_host_port"         : [8080, 8090],
+        "logging_level"          : 'ERROR',
+        "noauth_local_webserver" : False
+    }
+    flags = argparse.Namespace(**flags) # namespace for running the flow
+    
+    # if auth credentials dont exist or are invalid, run flow (and save auth tokens)
+    tokens      = file.Storage("tokens.dat")
+    credentials = tokens.get()
+    
+    if credentials is None or credentials.invalid:
+      credentials = tools.run_flow(flow, tokens, flags)
+
+    # httplib2 object to handle requests with correct auth creds
+    http = httplib2.Http()
+    http = credentials.authorize(http)
+
+    # service object for using calendar api
+    # g_api = discovery.build('calendar', 'v3', http=http)
+
+    try:
+        return discovery.build('calendar', 'v3', http=http)
+    except client.AccessTokenRefreshError:
+        print ("The credentials have been revoked or expired, please re-run the application to re-authorize")
+        return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+Scrape Marvel
+"""
 def scrape_marvel(comic_title, url):
     print "marvel - gathering info..."
     last_issues = {}
@@ -129,7 +268,7 @@ def scrape_marvel(comic_title, url):
 
 
     for title, url in last_issues.iteritems():
-        print "marvel - getting release info for %s" % title
+        print "marvel - getting release info for %s..." % title
         url = base_url["marvel"][:-15]+url
 
         try:
@@ -147,16 +286,16 @@ def scrape_marvel(comic_title, url):
             print e
 
 
-
-
-
+"""
+Scrape Image and DC
+"""
 def scrape(publisher, comic_title, uri):
     url = base_url[publisher] + uri
 
     if publisher == "marvel":
         scrape_marvel(comic_title, url)
     else:
-        print "%s - getting release info for %s" % (publisher, comic_title)
+        print "%s - getting release info for %s..." % (publisher, comic_title)
         try:
             r = requests.get(url)
             
@@ -193,4 +332,4 @@ def scrape(publisher, comic_title, uri):
 
 # init 
 if __name__ == '__main__':
-  main()
+  main(sys.argv)

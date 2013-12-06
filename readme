@@ -1,10 +1,12 @@
 # comiCal
+#### comic release dates right in your google calendar!
 by brandon sachs
-
-#### comic release dates right in your google calendar
 
 ##### required modules
 ```
 requests
 beautifulsoup4
+google-api-python-client
 ```
+
+comiCal attempts to create a new calendar called "comiCal" to store release dates in. this prevents spamming up your main calendar.
