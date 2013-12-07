@@ -42,6 +42,10 @@ notes/ideas/whatever
         -l --last   string (last? idunno)
 
     have an option in gcal to check if the comic exists already (for past issues) and to correct the date if its been updated
+
+    have an option to specify just one comic or a list of comics to scan individually instead of whole collection.
+
+    have an option to scan when adding a new comic via args
  
     when iterating through release_dates for gcal, if possible, search for the comic title first to see if it's already in the cal, then check the date of it. if the date is wrong, re-schedule to newer scraped date
 """
@@ -120,7 +124,7 @@ def main(argv):
     # print release_dates
     
     # temp
-    # release_dates = {'image': {u'The Walking Dead #116': u'November 13, 2013',u'The Walking Dead #117': u'November 27, 2013'}, 'dc': {u'Green Lantern Corps #28': u'Feb 12 2014',u'Green Lantern Corps #25': u'Nov 13 2013',u'Green Lantern Corps #26': u'Dec 11 2013',u'Green Lantern Corps #27': u'Jan 15 2014',u'Superman Unchained #4': u'Nov 6 2013',u'Superman Unchained #5': u'Dec 31 2013',u'Superman Unchained #6': u'Jan 29 2014',u'Superman Unchained #7': u'Feb 26 2014',u'Green Lantern #25': u'Nov 6 2013',u'Green Lantern #27': u'Jan 8 2014',u'Green Lantern #26': u'Dec 4 2013',u'Justice League #28': u'Feb 19 2014',u'Green Lantern: New Guardians #26': u'Dec 18 2013',u'Green Lantern: New Guardians #27': u'Jan 22 2014',u'Superman #28': u'Feb 26 2014',u'Green Lantern: New Guardians #25': u'Nov 20 2013',u'Superman #26': u'Dec 31 2013',u'Superman #27': u'Jan 29 2014',u'Green Lantern: New Guardians #28': u'Feb 19 2014',u'Superman #25': u'Nov 27 2013',u'Justice League #25': u'Dec 11 2013',u'Justice League #27': u'Jan 22 2014',u'Justice League #26': u'Dec 24 2013',u'Green Lantern/Red Lanterns #28': u'Feb 5 2014'}, 'marvel': {u'Ultimate Spider-Man #27': u'September 25, 2013',u'Ultimate Spider-Man #26': u'August 28, 2013',u'Ultimate Spider-Man #28': u'October 23, 2013',u'Ultimate Spider-Man #32': u'February 19, 2014',u'Superior Spider-Man #25': u'January 15, 2014',u'Superior Spider-Man #27': u'February 12, 2014',u'Superior Spider-Man #26': u'January 29, 2014',u'Superior Spider-Man #28': u'February 26, 2014'}}
+    release_dates = {'image': {u'The Walking Dead #116': u'November 13, 2013',u'The Walking Dead #117': u'November 27, 2013'}, 'dc': {u'Green Lantern Corps #28': u'Feb 12 2014',u'Green Lantern Corps #25': u'Nov 13 2013',u'Green Lantern Corps #26': u'Dec 11 2013',u'Green Lantern Corps #27': u'Jan 15 2014',u'Superman Unchained #4': u'Nov 6 2013',u'Superman Unchained #5': u'Dec 31 2013',u'Superman Unchained #6': u'Jan 29 2014',u'Superman Unchained #7': u'Feb 26 2014',u'Green Lantern #25': u'Nov 6 2013',u'Green Lantern #27': u'Jan 8 2014',u'Green Lantern #26': u'Dec 4 2013',u'Justice League #28': u'Feb 19 2014',u'Green Lantern: New Guardians #26': u'Dec 18 2013',u'Green Lantern: New Guardians #27': u'Jan 22 2014',u'Superman #28': u'Feb 26 2014',u'Green Lantern: New Guardians #25': u'Nov 20 2013',u'Superman #26': u'Dec 31 2013',u'Superman #27': u'Jan 29 2014',u'Green Lantern: New Guardians #28': u'Feb 19 2014',u'Superman #25': u'Nov 27 2013',u'Justice League #25': u'Dec 11 2013',u'Justice League #27': u'Jan 22 2014',u'Justice League #26': u'Dec 24 2013',u'Green Lantern/Red Lanterns #28': u'Feb 5 2014'}, 'marvel': {u'Ultimate Spider-Man #27': u'September 25, 2013',u'Ultimate Spider-Man #26': u'August 28, 2013',u'Ultimate Spider-Man #28': u'October 23, 2013',u'Ultimate Spider-Man #32': u'February 19, 2014',u'Superior Spider-Man #25': u'January 15, 2014',u'Superior Spider-Man #27': u'February 12, 2014',u'Superior Spider-Man #26': u'January 29, 2014',u'Superior Spider-Man #28': u'February 26, 2014'}}
     
     # auth with google now!
     g_api = g_auth()
@@ -129,27 +133,30 @@ def main(argv):
         cal_present = g_check_comical_calendar(g_api)
         
         if cal_present != False:
-            # iterate through release_dates and use g_search to see if there are already issues present in the calendar
-            # this way, if there is already the comic issue on the calendar, and the date differs from the latest release date
-            #   update that found event instead of creating a new one. recycling kicks ass.
-            print "searching comiCal calendar for a manual entry Superman #26"
-            result = g_search(g_api, "Superman #26", "Dec 31 2013")
-            print "search results: %s" % result
+            for publisher in release_dates.iteritems():
+                for comic in publisher[1].iteritems():
+                    title         = comic[0]
+                    date          = comic[1]
+                    search_result = g_search(g_api, publisher[0], title, date)
 
-            if result["action"] == "update":
-                print "run g_update_event function"
-                update_status = g_update_event_date(g_api, result["event_id"], result["new_date"])
-                if update_status:
-                    print "successfully updated event to latest release date"
+                    if search_result["action"] == "update":
+                        print title + " already in calendar, but on an incorrect date. updating...",
 
-            elif result["action"] == "create":
-                # i need the users email for this, minimum
-                print "run g_create_event function"
+                        update_status = g_update_event_date(g_api, search_result["event_id"], search_result["new_date"])
+                        if update_status:
+                            print "ok. new date: %s" % update_status["new_date"]
+                        else:
+                            print "error :-("
 
-            elif result["action"] == None:
-                print "there is already a calendar entry for this comic, on the correct date. continue"
-            else:
-                print "dunno wtf you just did"
+                    elif search_result["action"] == "create":
+                        # i need the users email for this, minimum. i think
+                        print "run g_create_event function for %s" % title
+
+
+                    elif search_result["action"] == None:
+                        print "%s already in calendar on %s" % (title, search_result["date"])
+                    else:
+                        print "dunno wtf you just did"
             
     else:
         print "not authed!"
@@ -162,8 +169,26 @@ def main(argv):
 
 
 def g_create_event(g_api_obj, title, date):
-    # https://developers.google.com/google-apps/calendar/v3/reference/events/insert
     pass
+    event = {
+      'summary': title,
+      'location': 'Somewhere',
+      'start': {
+        'dateTime': '2011-06-03T10:00:00.000-07:00'
+      },
+      'end': {
+        'dateTime': '2011-06-03T10:25:00.000-07:00'
+      },
+      'attendees': [
+        {
+          'email': 'attendeeEmail',
+          # Other attendee's data...
+        },
+        # ...
+      ]
+    }
+    created_event = g_api.events().insert(calendarId=comiCal_calendar_id, body=event).execute()
+    print created_event['id']
 
 def g_update_event_date(g_api_obj, event_id, new_date):
     # get current event and change some stuff
@@ -173,7 +198,9 @@ def g_update_event_date(g_api_obj, event_id, new_date):
     updated_event          = g_api_obj.events().update(calendarId=comiCal_calendar_id, eventId=event_id, body=event).execute()
 
     if updated_event:
-        return True
+        return {
+            "new_date" : new_date
+        }
     else:
         return False
 
@@ -188,18 +215,12 @@ date_format = {
 
 
 # searches for comic issue to see if its already on the calendar.
-def g_search(g_api_obj, title, latest_release_date):
-    global comiCal_calendar_id # temp? dunno
+def g_search(g_api_obj, publisher, title, latest_release_date):
     try:
         # normalize dates between publishers, compare to latest
-        print "DEBUG g_search - latest_release_date_gcal strptime using hard-coded dc comics date format"
-        latest_release_date_gcal = strptime(latest_release_date, date_format["dc"])
+        latest_release_date_gcal = strptime(latest_release_date, date_format[publisher])
         latest_release_date_gcal = strftime(date_format["google"], latest_release_date_gcal)
 
-        print "temporary manually setting calendar id"
-        comiCal_calendar_id = "jebkd11hv062j2u2s47rku0vt0@group.calendar.google.com"
-
-        print "comiCal calendar id: %s" % comiCal_calendar_id
         results = g_api_obj.events().list(calendarId=comiCal_calendar_id,
                                           q=title).execute()
         
@@ -208,23 +229,25 @@ def g_search(g_api_obj, title, latest_release_date):
 
         if latest_release_date_gcal != result_date:
             return {
-                "action" : "update",
-                "new_date" : latest_release_date_gcal,
-                "event_id" : results["items"][0]["id"]
+                "action"  : "update",
+                "new_date": latest_release_date_gcal,
+                "event_id": results["items"][0]["id"]
                 }
         else:
             return {
-                "action" : None
+                "action": None,
+                "date"  : result_date
             }
     except IndexError as e:
         return {
-            "action" : "create",
-            "date" : latest_release_date_gcal
+            "action": "create",
+            "title" : title,
+            "date"  : latest_release_date_gcal
         }
         return e
     except Exception as e:
         print "unknown exception in g_search"
-        return e
+        print e
 
 
 
@@ -233,7 +256,8 @@ def g_search(g_api_obj, title, latest_release_date):
 # checks for the presence of the comiCal calendar. if not, create it.
 # this is what comics will be labeled under
 def g_check_comical_calendar(g_api_obj):
-    print "checking for comiCal calendar..."
+    global comiCal_calendar_id
+    print "checking for comiCal calendar...",
     cal_present = False
     
     try:
@@ -250,13 +274,15 @@ def g_check_comical_calendar(g_api_obj):
     except Exception as e:
         print "error fetching google calendar list"
         print e
-        
+    
+    print "ok"    
     return cal_present
 
 
 
 
 def g_make_comical_calendar(g_api_obj):
+    global comiCal_calendar_id
     print "comiCal calendar not present, creating it..."
     cal_created = False
     
