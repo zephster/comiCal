@@ -6,10 +6,12 @@ by brandon sachs
 import sys
 import argparse
 import requests
+from time import strptime, strftime
 from bs4 import BeautifulSoup
 
 """ 
-relevant docs i may want to read:
+relevant docs:
+    https://developers.google.com/google-apps/calendar/v3/reference/
     http://docs.python.org/2/library/queue.html
     http://docs.python.org/2/library/pickle.html
         https://wiki.python.org/moin/UsingPickle
@@ -93,6 +95,9 @@ google_oauth = {
     "redirect_uris" : ["urn:ietf:wg:oauth:2.0:oob","oob"]
 }
 
+# filled in when created
+comiCal_calendar_id = None
+
 # make this an arg or somethin
 marvel_get_last_issues = 4
 
@@ -110,10 +115,12 @@ def main(argv):
     #         print "no titles to scrape in %s" % publisher
     
     
-    # manually fetch one set for gcal testing
+    # # manually fetch one set for gcal testing
     # scrape("dc", "Superman", comics["dc"]["Superman"])
     # print release_dates
     
+    # temp
+    # release_dates = {'image': {u'The Walking Dead #116': u'November 13, 2013',u'The Walking Dead #117': u'November 27, 2013'}, 'dc': {u'Green Lantern Corps #28': u'Feb 12 2014',u'Green Lantern Corps #25': u'Nov 13 2013',u'Green Lantern Corps #26': u'Dec 11 2013',u'Green Lantern Corps #27': u'Jan 15 2014',u'Superman Unchained #4': u'Nov 6 2013',u'Superman Unchained #5': u'Dec 31 2013',u'Superman Unchained #6': u'Jan 29 2014',u'Superman Unchained #7': u'Feb 26 2014',u'Green Lantern #25': u'Nov 6 2013',u'Green Lantern #27': u'Jan 8 2014',u'Green Lantern #26': u'Dec 4 2013',u'Justice League #28': u'Feb 19 2014',u'Green Lantern: New Guardians #26': u'Dec 18 2013',u'Green Lantern: New Guardians #27': u'Jan 22 2014',u'Superman #28': u'Feb 26 2014',u'Green Lantern: New Guardians #25': u'Nov 20 2013',u'Superman #26': u'Dec 31 2013',u'Superman #27': u'Jan 29 2014',u'Green Lantern: New Guardians #28': u'Feb 19 2014',u'Superman #25': u'Nov 27 2013',u'Justice League #25': u'Dec 11 2013',u'Justice League #27': u'Jan 22 2014',u'Justice League #26': u'Dec 24 2013',u'Green Lantern/Red Lanterns #28': u'Feb 5 2014'}, 'marvel': {u'Ultimate Spider-Man #27': u'September 25, 2013',u'Ultimate Spider-Man #26': u'August 28, 2013',u'Ultimate Spider-Man #28': u'October 23, 2013',u'Ultimate Spider-Man #32': u'February 19, 2014',u'Superior Spider-Man #25': u'January 15, 2014',u'Superior Spider-Man #27': u'February 12, 2014',u'Superior Spider-Man #26': u'January 29, 2014',u'Superior Spider-Man #28': u'February 26, 2014'}}
     
     # auth with google now!
     g_api = g_auth()
@@ -122,13 +129,102 @@ def main(argv):
         cal_present = g_check_comical_calendar(g_api)
         
         if cal_present != False:
-            print "iterate through release dates and shit now!!!!!"
+            # iterate through release_dates and use g_search to see if there are already issues present in the calendar
+            # this way, if there is already the comic issue on the calendar, and the date differs from the latest release date
+            #   update that found event instead of creating a new one. recycling kicks ass.
+            print "searching comiCal calendar for a manual entry Superman #26"
+            result = g_search(g_api, "Superman #26", "Dec 31 2013")
+            print "search results: %s" % result
+
+            if result["action"] == "update":
+                print "run g_update_event function"
+                update_status = g_update_event_date(g_api, result["event_id"], result["new_date"])
+                if update_status:
+                    print "successfully updated event to latest release date"
+
+            elif result["action"] == "create":
+                # i need the users email for this, minimum
+                print "run g_create_event function"
+
+            elif result["action"] == None:
+                print "there is already a calendar entry for this comic, on the correct date. continue"
+            else:
+                print "dunno wtf you just did"
             
     else:
         print "not authed!"
     
     #keep open
     #raw_input()
+
+
+
+
+
+def g_create_event(g_api_obj, title, date):
+    # https://developers.google.com/google-apps/calendar/v3/reference/events/insert
+    pass
+
+def g_update_event_date(g_api_obj, event_id, new_date):
+    # get current event and change some stuff
+    event                  = g_api_obj.events().get(calendarId=comiCal_calendar_id, eventId=event_id).execute()
+    event["end"]["date"]   = u"%s" % new_date
+    event["start"]["date"] = u"%s" % new_date
+    updated_event          = g_api_obj.events().update(calendarId=comiCal_calendar_id, eventId=event_id, body=event).execute()
+
+    if updated_event:
+        return True
+    else:
+        return False
+
+
+
+date_format = {
+    "dc"    : "%b %d %Y",
+    "image" : "%B %d, %Y",
+    "marvel": "%B %d, %Y",
+    "google":"%Y-%m-%d"
+}
+
+
+# searches for comic issue to see if its already on the calendar.
+def g_search(g_api_obj, title, latest_release_date):
+    global comiCal_calendar_id # temp? dunno
+    try:
+        # normalize dates between publishers, compare to latest
+        print "DEBUG g_search - latest_release_date_gcal strptime using hard-coded dc comics date format"
+        latest_release_date_gcal = strptime(latest_release_date, date_format["dc"])
+        latest_release_date_gcal = strftime(date_format["google"], latest_release_date_gcal)
+
+        print "temporary manually setting calendar id"
+        comiCal_calendar_id = "jebkd11hv062j2u2s47rku0vt0@group.calendar.google.com"
+
+        print "comiCal calendar id: %s" % comiCal_calendar_id
+        results = g_api_obj.events().list(calendarId=comiCal_calendar_id,
+                                          q=title).execute()
+        
+        result_title = results["items"][0]["summary"]
+        result_date  = results["items"][0]["start"]['date']
+
+        if latest_release_date_gcal != result_date:
+            return {
+                "action" : "update",
+                "new_date" : latest_release_date_gcal,
+                "event_id" : results["items"][0]["id"]
+                }
+        else:
+            return {
+                "action" : None
+            }
+    except IndexError as e:
+        return {
+            "action" : "create",
+            "date" : latest_release_date_gcal
+        }
+        return e
+    except Exception as e:
+        print "unknown exception in g_search"
+        return e
 
 
 
@@ -147,6 +243,7 @@ def g_check_comical_calendar(g_api_obj):
         for cal in cals:
             if "comiCal" in cal.values():
                 cal_present = True
+                comiCal_calendar_id = cal["id"]
                 
         if not cal_present:
             return g_make_comical_calendar(g_api_obj)
@@ -168,6 +265,7 @@ def g_make_comical_calendar(g_api_obj):
             "summary" : "comiCal"
         }
         create = g_api_obj.calendars().insert(body=comical).execute()
+        comiCal_calendar_id = create["id"]
         
         if create != False:
             print "comiCal calendar created!"
@@ -177,6 +275,7 @@ def g_make_comical_calendar(g_api_obj):
         print e
     
     return cal_created
+
 
 
 
@@ -191,10 +290,10 @@ def g_auth():
     from oauth2client import tools
     from oauth2client.client import OAuth2WebServerFlow
     
-    flow = OAuth2WebServerFlow(scope         = google_oauth["scope"],
-                               client_id     = google_oauth["client_id"],
-                               client_secret = google_oauth["client_secret"],
-                               redirect_uris = google_oauth["redirect_uris"])
+    flo_rida = OAuth2WebServerFlow(scope         = google_oauth["scope"],
+                                   client_id     = google_oauth["client_id"],
+                                   client_secret = google_oauth["client_secret"],
+                                   redirect_uris = google_oauth["redirect_uris"])
     
     flags = {
         "auth_host_name"         : 'localhost',
@@ -204,12 +303,12 @@ def g_auth():
     }
     flags = argparse.Namespace(**flags)
     
-    # if auth credentials dont exist or are invalid, run flow (and save auth tokens)
+    # if auth credentials dont exist or are invalid, run flo_rida (and save auth tokens)
     tokens      = file.Storage("comiCal_tokens.dat")
     credentials = tokens.get()
     
     if credentials is None or credentials.invalid:
-      credentials = tools.run_flow(flow, tokens, flags)
+      credentials = tools.run_flow(flo_rida, tokens, flags)
 
     # httplib2 object to handle requests with correct auth creds
     http = httplib2.Http()
