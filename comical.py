@@ -38,6 +38,10 @@ google_oauth = {
     "redirect_uris" : ["urn:ietf:wg:oauth:2.0:oob","oob"]
 }
 
+request_headers = {
+    "User-Agent" : "comiCal"
+}
+
 release_dates = {
     "dc"    :{},
     "marvel":{},
@@ -206,11 +210,20 @@ def comiCal_scan(args):
         print e
 
     if args.title and args.publisher:
-        my_comics = {
-            args.publisher: {
-                args.title : my_comics[args.publisher][args.title]
+        try:
+            my_comics = {
+                args.publisher: {
+                    args.title : my_comics[args.publisher][args.title]
+                }
             }
-        }
+        except KeyError as e:
+            print "comic '%s' not found for publisher '%s'" % (args.title, args.publisher)
+            print "use the --list command to view your comics"
+            exit()
+
+    if args.title or args.publisher:
+        print "error: you need both -t and -p arguments"
+        exit()
 
     for publisher, titles in my_comics.iteritems():
         if len(titles):
@@ -287,7 +300,7 @@ def scrape_marvel(comic_title, url):
     last_issues = {}
 
     try:
-        r = requests.get(url)
+        r = requests.get(url, headers=request_headers)
 
         if r.status_code == 404:
             print "error: url %s not found" % url
@@ -321,7 +334,7 @@ def scrape_marvel(comic_title, url):
         url = comic_base_urls["marvel"][:-15]+url
 
         try:
-            r = requests.get(url)
+            r = requests.get(url, headers=request_headers)
 
             if r.status_code == 404:
                 print "error: url %s not found" % url
@@ -349,20 +362,20 @@ def scrape(publisher, comic_title, uri, **args):
     if publisher == "marvel":
         scrape_marvel(comic_title, url)
     else:
-        if not args["verify"]:
+        if not args.get('verify'):
             print "%s - getting release info for %s..." % (publisher, comic_title),
         
         try:
-            r = requests.get(url)
+            r = requests.get(url, headers=request_headers)
 
             if r.status_code == 404:
-                if not args["verify"]:
+                if not args.get('verify'):
                     print "error: url %s not found" % url
                 else:
                     print "url not found"
                 exit()
             else:
-                if args["verify"]:
+                if args.get('verify'):
                     print "ok"
                     return
             
