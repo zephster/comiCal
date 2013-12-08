@@ -141,6 +141,9 @@ def comiCal_add_comic(args):
         print "unsupported publisher. please use one of the following:", comic_base_urls.keys()
         exit()
     
+    print "verifying %s (%s)..." % (args.title, comic_base_urls[args.publisher]+args.uri),
+    scrape(args.publisher, args.title, args.uri, verify=True)
+
     print "adding %s (%s) to comic list..." % (args.title, comic_base_urls[args.publisher]+args.uri),
 
     try:
@@ -339,20 +342,29 @@ def scrape_marvel(comic_title, url):
 """
 Scrape Image and DC
 """
-def scrape(publisher, comic_title, uri):
+def scrape(publisher, comic_title, uri, **args):
     global release_dates
     url = comic_base_urls[publisher] + uri
 
     if publisher == "marvel":
         scrape_marvel(comic_title, url)
     else:
-        print "%s - getting release info for %s..." % (publisher, comic_title),
+        if not args["verify"]:
+            print "%s - getting release info for %s..." % (publisher, comic_title),
+        
         try:
             r = requests.get(url)
 
             if r.status_code == 404:
-                print "error: url %s not found" % url
+                if not args["verify"]:
+                    print "error: url %s not found" % url
+                else:
+                    print "url not found"
                 exit()
+            else:
+                if args["verify"]:
+                    print "ok"
+                    return
             
             try:
                 soup = BeautifulSoup(r.text.encode("utf-8"))
