@@ -217,11 +217,12 @@ def comiCal_scan(args):
                 }
             }
         except KeyError as e:
-            print "comic '%s' not found for publisher '%s'" % (args.title, args.publisher)
+            print "comic '%s' not found for publisher '%s'. arguments are case-sensitive, try again." % (args.title, args.publisher)
             print "use the --list command to view your comics"
             exit()
 
-    if args.title or args.publisher:
+    elif args.title or args.publisher:
+
         print "error: you need both -t and -p arguments"
         exit()
 
