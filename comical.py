@@ -8,43 +8,6 @@ import requests
 from time import strptime, strftime
 from bs4 import BeautifulSoup
 
-""" 
-relevant docs:
-    http://stackoverflow.com/questions/16618240/how-to-add-parameters-to-a-built-file-in-sublime-text-3-before-execution
-    http://docs.python.org/2/library/queue.html
-     
-notes/ideas/whatever
-    save/load list of comics
-        can add sys opts to add/remove comics on-the-fly
-            -a --add (run scrape and gcal routines, add info to comics pickle)
-                -p --publisher  string (dc|marvel|imagine else throw)
-                -t --title      string (name of the comic)
-                -u --uri        string
-            -r --remove (unpickle comics, search if title exists, if so, remove, re-pickle)
-                -p --publisher string (dc|marvel|imagine else throw)
-                -t --title     string (when checking if it exists, normalize in lowercase or something, or use a case-insensitive flag if there is one)
- 
-    have an option to format comic title in uppercase or camel case?
-        default to camel case?
-        -f --format string (uppercase|camelcase else throw)
-
-    have an option to indicate how many back-issues from the latest issue comical should check for release info
-        -l --last   string (last? idunno)
-        marvel will be the easiest to implement this with since all their issues are lumped up into one element lol
-
-    have an option to specify just one comic to scan and update from your saved comics list
-
-    have an option to specify name of calendar (default: comiCal)
-"""
-
-
-
-"""
-    known bug - when running from nothing (no comiCal calendar created), green lantern 25/26/27 are UPDATED to their release date instead of being CREATED as an entirely new event. the newly created calendar should be empty, so this is strange. just those 3 comics. wtf?
-
-        I KNOW WHY!!!
-            green lantern corps was being added before green lantern, and when the scan searches for green lantern, it sess green lantern corps as well and date-checks that instead of it correctly showing as not currently in the cal
-"""
 
 
 # a publisher is officially supported once added here
@@ -89,6 +52,37 @@ marvel_get_last_issues = 5
 
 # comic db file
 my_comics_file = "my_comics.pkl"
+
+
+
+
+def main():
+    parser = argparse.ArgumentParser("comiCal.py")
+    parser.add_argument('-l', '--list',   action ='store_true', help='lists all of your comics')
+    parser.add_argument('-i', '--info',   action ='store_true', help='info on --uri, and how to find it yours')
+    parser.add_argument('-a', '--add',    action ='store_true', help='add a comic to your list. use -t, -p, and -u')
+    parser.add_argument('-s', '--scan',   action ='store_true', help='checks comics. blank for all, -t and -p for specific')
+    parser.add_argument('-r', '--remove', action ='store_true', help='remove a comic from your list. use -t and -p')
+    parser.add_argument('-u', '--uri')
+    parser.add_argument('-t', '--title')
+    parser.add_argument('-p', '--publisher')
+    args = parser.parse_args()
+
+    if args.list:
+        comiCal_show_comics()
+    elif args.info:
+        comiCal_show_uri_info()
+    elif args.add:
+        comiCal_add_comic(args)
+    elif args.remove:
+        comiCal_remove_comic(args)
+    elif args.scan:
+        # hold on to your butts!
+        comiCal_scan(args)
+    else:
+        print "use the --help command"
+    exit()
+
 
 
 
@@ -193,81 +187,34 @@ def comiCal_remove_comic(args):
         print "unknown exception removing comics"
         print e, type(e)
 
-    
-
-
-
-def main():
-    # parse args
-    # todo: add -s --scan start a scan of comics from my_comics.pkl
-    parser = argparse.ArgumentParser("comiCal.py")
-    parser.add_argument('-l', '--list',   action ='store_true', help='lists all of your comics')
-    parser.add_argument('-i', '--info',   action ='store_true', help='info on --uri, and how to find it yours')
-    parser.add_argument('-a', '--add',    action ='store_true', help='add a comic to your list. use -t, -p, and -u')
-    parser.add_argument('-s', '--scan',   action ='store_true', help='checks comics. blank for all, -t and -p for specific')
-    parser.add_argument('-r', '--remove', action ='store_true', help='remove a comic from your list. use -t and -p')
-    parser.add_argument('-u', '--uri')
-    parser.add_argument('-t', '--title')
-    parser.add_argument('-p', '--publisher')
-    args = parser.parse_args()
-
-    if args.list:
-        comiCal_show_comics()
-    elif args.info:
-        comiCal_show_uri_info()
-    elif args.add:
-        comiCal_add_comic(args)
-    elif args.remove:
-        comiCal_remove_comic(args)
-    elif args.scan:
-        start(args)
-    else:
-        print "use the --help command"
-    exit()
-
-
-
-
-
-
-
-
-
-
-
-def start(args):
+def comiCal_scan(args):
     # human centipede: first sequence
     print "------------------------------"
     print "      comiCal starting!"
     print "------------------------------"
 
-    # try:
-    #     my_comics = comiCal_load_comics(my_comics_file)
-    # except IOError as e:
-    #     print "no comics found. please add a comic first"
-    #     exit()
-    # except Exception as e:
-    #     print "unknown exception opening saved comics"
-    #     print e
+    try:
+        my_comics = comiCal_load_comics(my_comics_file)
+    except IOError as e:
+        print "no comics found. please add a comic first"
+        exit()
+    except Exception as e:
+        print "unknown exception opening saved comics"
+        print e
 
-    # if args.title and args.publisher:
-    #     my_comics = {
-    #         args.publisher: {
-    #             args.title : my_comics[args.publisher][args.title]
-    #         }
-    #     }
+    if args.title and args.publisher:
+        my_comics = {
+            args.publisher: {
+                args.title : my_comics[args.publisher][args.title]
+            }
+        }
 
-    # # hold on to your butts
-    # for publisher, titles in my_comics.iteritems():
-    #     if len(titles):
-    #         for name, uri in titles.iteritems():
-    #             scrape(publisher, name, uri)
-    #     else:
-    #         print "no titles to scrape in %s" % publisher
-
-    # temp cached release_dates
-    release_dates = {'image': {}, 'dc': {u'Green Lantern Corps #28': u'Feb 12 2014',u'Green Lantern Corps #25': u'Nov 13 2013',u'Green Lantern Corps #26': u'Dec 11 2013',u'Green Lantern Corps #27': u'Jan 15 2014',u'Green Lantern #25': u'Nov 6 2013',u'Green Lantern #27': u'Jan 8 2014',u'Green Lantern #26': u'Dec 4 2013',u'Green Lantern: New Guardians #26': u'Dec 18 2013',u'Green Lantern: New Guardians #27': u'Jan 22 2014',u'Green Lantern: New Guardians #25': u'Nov 20 2013',u'Green Lantern: New Guardians #28': u'Feb 19 2014',u'Green Lantern/Red Lanterns #28': u'Feb 5 2014'}, 'marvel': {}}
-
+    for publisher, titles in my_comics.iteritems():
+        if len(titles):
+            for name, uri in titles.iteritems():
+                scrape(publisher, name, uri)
+        else:
+            print "no titles to scrape in %s" % publisher
     
     # auth with google now
     print "authenticating with google...",
@@ -303,7 +250,7 @@ def start(args):
                                                        date      = date,
                                                        publisher = publisher[0])
                         if insert_status:
-                            print "ok. event_id: %s" % insert_status
+                            print "ok"#" event_id: %s" % insert_status
                         else:
                             print "error creating event :-("
 
@@ -318,201 +265,6 @@ def start(args):
     
     #keep open
     #raw_input()
-
-
-
-
-
-def g_create_event(g_api_obj, **info):
-    date = comiCal_convert_date(info["publisher"], info["date"], "google")
-
-    event = {
-      "summary": info["title"],
-      "description" : "added by comiCal.py",
-      "start": {
-        "date" : date
-      },
-      "end": {
-        "date" : date
-      }
-    }
-    
-    created_event = g_api_obj.events().insert(calendarId=comiCal_calendar_id, body=event).execute()
-    return created_event['id']
-
-def g_update_event_date(g_api_obj, **info):
-    # get current event and change some stuff
-    event                  = g_api_obj.events().get(calendarId=comiCal_calendar_id, eventId=info["event_id"]).execute()
-    event["end"]["date"]   = u"%s" % info["new_date"]
-    event["start"]["date"] = u"%s" % info["new_date"]
-    updated_event          = g_api_obj.events().update(calendarId=comiCal_calendar_id, eventId=info["event_id"], body=event).execute()
-
-    if updated_event:
-        return {
-            "new_date" : info["new_date"]
-        }
-    else:
-        return False
-
-
-
-
-
-
-# searches for comic issue to see if its already on the calendar.
-def g_search(g_api_obj, publisher, title, latest_release_date):
-    try:
-        latest_release_date_gcal = comiCal_convert_date(publisher, latest_release_date, "google")
-        results = g_api_obj.events().list(calendarId=comiCal_calendar_id,
-                                          q=title).execute()
-
-
-
-        # here is the bug. i need to search for exact results somehow instead of general results
-        # or else comics of similar names will be displayed
-        # maybe i can do this via search query params on google
-        # or maybe i have to do it myself in python
-        # in python, iterate over results[items] and match summary to title
-
-        print "searching", title
-        print "found:"
-
-        for result in results.itervalues():
-            print result
-
-        exit()
-        
-        result_title = results["items"][0]["summary"]
-        result_date  = results["items"][0]["start"]['date']
-
-        if latest_release_date_gcal != result_date:
-            return {
-                "action"  : "update",
-                "new_date": latest_release_date_gcal,
-                "event_id": results["items"][0]["id"]
-                }
-        else:
-            return {
-                "action": None,
-                "date"  : result_date
-            }
-    except IndexError as e:
-        return {
-            "action": "create",
-            "title" : title,
-            "date"  : latest_release_date_gcal
-        }
-        return e
-    except Exception as e:
-        print "unknown exception in g_search"
-        print e
-
-
-
-
-
-# checks for the presence of the comiCal calendar. if not, create it.
-def g_check_comical_calendar(g_api_obj):
-    global comiCal_calendar_id
-    print "checking for comiCal calendar...",
-    cal_present = False
-    
-    try:
-        calendar_list = g_api_obj.calendarList().list().execute()
-        cals = calendar_list["items"]
-        
-        for cal in cals:
-            if "comiCal" in cal.values():
-                cal_present = True
-                comiCal_calendar_id = cal["id"]
-                
-        if not cal_present:
-            return g_make_comical_calendar(g_api_obj)
-    except Exception as e:
-        print "error fetching google calendar list"
-        print e
-    
-    print "ok"    
-    return cal_present
-
-
-
-
-def g_make_comical_calendar(g_api_obj):
-    global comiCal_calendar_id
-    print "comiCal calendar not present, creating it..."
-    cal_created = False
-    
-    try:
-        comical = {
-            "summary" : "comiCal"
-        }
-        create = g_api_obj.calendars().insert(body=comical).execute()
-        comiCal_calendar_id = create["id"]
-        
-        if create != False:
-            print "comiCal calendar created!"
-            cal_created = True
-    except Exception as e:
-        print "error creating comiCal calendar"
-        print e
-    
-    return cal_created
-
-
-def g_auth():
-    import httplib2
-    from apiclient import discovery
-    from oauth2client import file
-    from oauth2client import client
-    from oauth2client import tools
-    from oauth2client.client import OAuth2WebServerFlow
-    
-    flo_rida = OAuth2WebServerFlow(scope         = google_oauth["scope"],
-                                   client_id     = google_oauth["client_id"],
-                                   client_secret = google_oauth["client_secret"],
-                                   redirect_uris = google_oauth["redirect_uris"])
-    
-    flags = {
-        "auth_host_name"         : 'localhost',
-        "auth_host_port"         : [8080, 8090],
-        "logging_level"          : 'ERROR',
-        "noauth_local_webserver" : False
-    }
-    flags = argparse.Namespace(**flags)
-    
-    # if auth credentials dont exist or are invalid, run flo_rida (and save auth tokens)
-    tokens      = file.Storage("comiCal_tokens.dat")
-    credentials = tokens.get()
-    
-    if credentials is None or credentials.invalid:
-      credentials = tools.run_flow(flo_rida, tokens, flags)
-
-    # httplib2 object to handle requests with correct auth creds
-    http = httplib2.Http()
-    http = credentials.authorize(http)
-
-    # service object for using calendar api
-    # g_api = discovery.build('calendar', 'v3', http=http)
-
-    try:
-        return discovery.build('calendar', 'v3', http=http)
-    except client.AccessTokenRefreshError:
-        print ("The credentials have been revoked or expired, please re-run the application to re-authorize")
-        return False
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -584,9 +336,6 @@ def scrape_marvel(comic_title, url):
             print "unable to fetch issue info %s" % title
             print e
 
-
-
-
 """
 Scrape Image and DC
 """
@@ -639,6 +388,162 @@ def scrape(publisher, comic_title, uri):
 
 
 
+
+def g_create_event(g_api_obj, **info):
+    date = comiCal_convert_date(info["publisher"], info["date"], "google")
+
+    event = {
+      "summary": info["title"],
+      "description" : "added by comiCal.py",
+      "start": {
+        "date" : date
+      },
+      "end": {
+        "date" : date
+      }
+    }
+    
+    created_event = g_api_obj.events().insert(calendarId=comiCal_calendar_id, body=event).execute()
+    return created_event['id']
+
+def g_update_event_date(g_api_obj, **info):
+    # get current event and change some stuff
+    event                  = g_api_obj.events().get(calendarId=comiCal_calendar_id, eventId=info["event_id"]).execute()
+    event["end"]["date"]   = u"%s" % info["new_date"]
+    event["start"]["date"] = u"%s" % info["new_date"]
+    updated_event          = g_api_obj.events().update(calendarId=comiCal_calendar_id, eventId=info["event_id"], body=event).execute()
+
+    if updated_event:
+        return {
+            "new_date" : info["new_date"]
+        }
+    else:
+        return False
+
+# searches for comic issue to see if its already on the calendar.
+def g_search(g_api_obj, publisher, title, latest_release_date):
+    try:
+        latest_release_date_gcal = comiCal_convert_date(publisher, latest_release_date, "google")
+        results = g_api_obj.events().list(calendarId=comiCal_calendar_id,
+                                          q=title).execute()
+
+        # ensure correct event
+        result = None
+        for found in results["items"]:
+            if title == found["summary"]:
+                result = found
+                break
+        
+        result_title = result["summary"]
+        result_date  = result["start"]['date']
+
+        if result != None and latest_release_date_gcal != result_date:
+            return {
+                "action"  : "update",
+                "new_date": latest_release_date_gcal,
+                "event_id": result["id"]
+                }
+        else:
+            return {
+                "action": None,
+                "date"  : result_date
+            }
+    except (IndexError, TypeError) as e:
+        return {
+            "action": "create",
+            "title" : title,
+            "date"  : latest_release_date_gcal
+        }
+        return e
+    except Exception as e:
+        print "unknown exception in g_search"
+        print e
+
+# checks for the presence of the comiCal calendar. if not, create it.
+def g_check_comical_calendar(g_api_obj):
+    global comiCal_calendar_id
+    print "checking for comiCal calendar...",
+    cal_present = False
+    
+    try:
+        calendar_list = g_api_obj.calendarList().list().execute()
+        cals = calendar_list["items"]
+        
+        for cal in cals:
+            if "comiCal" in cal.values():
+                cal_present = True
+                comiCal_calendar_id = cal["id"]
+                
+        if not cal_present:
+            return g_create_comical_calendar(g_api_obj)
+    except Exception as e:
+        print "error fetching google calendar list"
+        print e
+    
+    print "ok"    
+    return cal_present
+
+def g_create_comical_calendar(g_api_obj):
+    global comiCal_calendar_id
+    print "comiCal calendar not present, creating it..."
+    cal_created = False
+    
+    try:
+        comical = {
+            "summary" : "comiCal"
+        }
+        create = g_api_obj.calendars().insert(body=comical).execute()
+        comiCal_calendar_id = create["id"]
+        
+        if create != False:
+            print "comiCal calendar created!"
+            cal_created = True
+    except Exception as e:
+        print "error creating comiCal calendar"
+        print e
+    
+    return cal_created
+
+def g_auth():
+    import httplib2
+    from apiclient import discovery
+    from oauth2client import file
+    from oauth2client import client
+    from oauth2client import tools
+    from oauth2client.client import OAuth2WebServerFlow
+    
+    flo_rida = OAuth2WebServerFlow(scope         = google_oauth["scope"],
+                                   client_id     = google_oauth["client_id"],
+                                   client_secret = google_oauth["client_secret"],
+                                   redirect_uris = google_oauth["redirect_uris"])
+    
+    flags = {
+        "auth_host_name"         : 'localhost',
+        "auth_host_port"         : [8080, 8090],
+        "logging_level"          : 'ERROR',
+        "noauth_local_webserver" : False
+    }
+    flags = argparse.Namespace(**flags)
+    
+    # if auth credentials dont exist or are invalid, run flo_rida (and save auth tokens)
+    tokens      = file.Storage("comiCal_tokens.dat")
+    credentials = tokens.get()
+    
+    if credentials is None or credentials.invalid:
+      credentials = tools.run_flow(flo_rida, tokens, flags)
+
+    # httplib2 object to handle requests with correct auth creds
+    http = httplib2.Http()
+    http = credentials.authorize(http)
+
+    # service object for using calendar api
+    # g_api = discovery.build('calendar', 'v3', http=http)
+
+    try:
+        return discovery.build('calendar', 'v3', http=http)
+    except client.AccessTokenRefreshError:
+        print ("The credentials have been revoked or expired, please re-run the application to re-authorize")
+        return False
 
 
 
