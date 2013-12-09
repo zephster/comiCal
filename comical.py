@@ -29,12 +29,6 @@ request_headers = {
     "User-Agent" : "comiCal"
 }
 
-release_dates = {
-    "dc"    :{},
-    "marvel":{},
-    "image" :{}
-}
-
 # filled in when created
 comiCal_calendar_id = None
 
@@ -90,7 +84,8 @@ def comiCal_show_comics():
     try:
         comic_list = util.load_comics(my_comics_file)
     except IOError as e:
-        "could not find %s" % my_comics_file
+        print "no comics saved! add one using --add"
+        exit()
 
     print "------------------------------"
     print "        comiCal comics        "
@@ -170,42 +165,90 @@ def comiCal_scan(args):
     print "------------------------------"
     print "      comiCal starting!"
     print "------------------------------"
-
-    # load comics
-    try:
-        my_comics = util.load_comics(my_comics_file)
-    except IOError as e:
-        print "no comics found. please add a comic first"
-        exit()
-    except Exception as e:
-        print "unknown exception opening saved comics"
-        print e
-
-    # args for scanning an individual comic
-    if args.title and args.publisher:
-        try:
-            my_comics = {
-                args.publisher: {
-                    args.title : my_comics[args.publisher][args.title]
-                }
-            }
-        except KeyError as e:
-            print "comic '%s' not found for publisher '%s'. arguments are case-sensitive, try again." % (args.title, args.publisher)
-            print "use the --list command to view your comics"
-            exit()
-    elif args.title or args.publisher:
-        print "error: you need both -t and -p arguments"
-        exit()
-
-
-    # scan selected
-    for publisher, titles in my_comics.iteritems():
-        if len(titles):
-            for name, uri in titles.iteritems():
-                scrape(publisher, name, uri)
-        else:
-            print "no titles to scrape in %s" % publisher
     
+    # load comics from saved. optionally parse args
+    def load_comics(args):
+        try:
+            comics = util.load_comics(my_comics_file)
+        except IOError as e:
+            print "no comics found. please add a comic first"
+            exit()
+        except Exception as e:
+            print "unknown exception opening saved comics"
+            print type(e)
+            exit()
+
+        # args for scanning an individual comic
+        if args.title and args.publisher:
+            try:
+                comics = {
+                    args.publisher: {
+                        args.title : comics[args.publisher][args.title]
+                    }
+                }
+            except KeyError as e:
+                print "comic '%s' not found for publisher '%s'. arguments are case-sensitive, try again." % (args.title, args.publisher)
+                print "use the --list command to view your comics"
+                exit()
+                
+        elif args.title or args.publisher:
+            print "error: you need both -t and -p arguments"
+            exit()
+            
+        return comics
+    
+    # run the scapers
+    def get_release_dates(comics):
+        release_dates = {}
+        for publisher, titles in comics.iteritems():
+            if len(titles):
+                for name, uri in titles.iteritems():
+                    info = scrape(publisher, name, uri)
+                    
+                    try:
+                        release_dates[publisher].update(info[publisher])
+                    except KeyError as e:
+                        release_dates[publisher] = {}
+                        release_dates[publisher].update(info[publisher])
+                        
+        return release_dates
+        
+    # searches gcal for existing events, chooses to update or create event
+    def process(release_dates):
+        for publisher in release_dates.iteritems():
+            for comic in publisher[1].iteritems():
+                title         = comic[0]
+                date          = comic[1]
+                search_result = g_api.calendar_search(publisher[0], title, date)
+
+                if search_result["action"] == "update":
+                    print title + " already in calendar, but on an incorrect date. updating...",
+
+                    update_status = g_api.calendar_event_update_date(event_id = search_result["event_id"],
+                                                                     new_date = search_result["new_date"])
+                    if update_status:
+                        print "ok. new date: %s" % update_status["new_date"]
+                    else:
+                        print "error updating event :-("
+
+                elif search_result["action"] == "create":
+                    print "adding %s on %s..." % (title, util.convert_date(publisher[0], date, "google")),
+
+                    insert_status = g_api.calendar_event_create(title     = title,
+                                                                date      = date,
+                                                                publisher = publisher[0])
+                    if insert_status:
+                        print "ok" #" event_id: %s" % insert_status
+                    else:
+                        print "error creating event :-("
+
+                elif search_result["action"] == None:
+                    print "%s already in calendar on %s" % (title, search_result["date"])
+                else:
+                    print "dunno wtf you just did"
+    
+    my_comics     = load_comics(args)
+    release_dates = get_release_dates(my_comics)
 
     # auth with google now
     print "authenticating with google...",
@@ -216,55 +259,39 @@ def comiCal_scan(args):
         cal_present = g_api.check_comical_calendar()
         
         if cal_present != False:
-            for publisher in release_dates.iteritems():
-                for comic in publisher[1].iteritems():
-                    title         = comic[0]
-                    date          = comic[1]
-                    search_result = g_api.calendar_search(publisher[0], title, date)
-
-                    if search_result["action"] == "update":
-                        print title + " already in calendar, but on an incorrect date. updating...",
-
-                        update_status = g_api.calendar_event_update_date(event_id = search_result["event_id"],
-                                                                         new_date = search_result["new_date"])
-                        if update_status:
-                            print "ok. new date: %s" % update_status["new_date"]
-                        else:
-                            print "error updating event :-("
-
-                    elif search_result["action"] == "create":
-                        print "adding %s on %s..." % (title, util.convert_date(publisher[0], date, "google")),
-
-                        insert_status = g_api.calendar_event_create(title     = title,
-                                                                    date      = date,
-                                                                    publisher = publisher[0])
-                        if insert_status:
-                            print "ok" #" event_id: %s" % insert_status
-                        else:
-                            print "error creating event :-("
-
-                    elif search_result["action"] == None:
-                        print "%s already in calendar on %s" % (title, search_result["date"])
-                    else:
-                        print "dunno wtf you just did"
+            process(release_dates)
     else:
         print "not authed!"
+        
+    print "done!"
 
 
 """
 Scrape Marvel
 """
-def scrape_marvel(comic_title, url):
-    global release_dates
-    print "marvel - getting resources for %s" % comic_title,
+def scrape_marvel(comic_title, url, **args):
+    if not args.get('verify'):
+        print "marvel - getting resources for %s" % comic_title,
+        
     last_issues = {}
+    
+    return_obj = {
+        "marvel": {}
+    }
 
     try:
         r = requests.get(url, headers=request_headers)
 
         if r.status_code == 404:
-            print "error: url %s not found" % url
+            if not args.get('verify'):
+                print "error: url %s not found" % url
+            else:
+                print "url not found"
             exit()
+        else:
+            if args.get('verify'):
+                print "ok"
+                return
 
         try:
             soup = BeautifulSoup(r.text.encode("utf-8"))
@@ -286,9 +313,8 @@ def scrape_marvel(comic_title, url):
     except Exception as e:
         print "error gathering previous issue information"
         print e
-
-
-
+        
+    
     for title, url in last_issues.iteritems():
         print "marvel - getting release info for %s..." % title,
         url = comic_base_urls["marvel"][:-15]+url
@@ -305,22 +331,24 @@ def scrape_marvel(comic_title, url):
             for info in soup.select(scrape_selectors["marvel_release"]):
                 info = info.text.strip().split("\n")
                 date = info[0][11:]
-                release_dates["marvel"][title] = date
+                return_obj["marvel"][title] = date
                 print "ok"
 
         except Exception as e:
             print "unable to fetch issue info %s" % title
             print e
+            exit()
+            
+    return return_obj
 
 """
 Scrape Image and DC
 """
 def scrape(publisher, comic_title, uri, **args):
-    global release_dates
     url = comic_base_urls[publisher] + uri
 
     if publisher == "marvel":
-        scrape_marvel(comic_title, url)
+        return scrape_marvel(comic_title, url, **args)
     else:
         if not args.get('verify'):
             print "%s - getting release info for %s..." % (publisher, comic_title),
@@ -342,22 +370,27 @@ def scrape(publisher, comic_title, uri, **args):
             try:
                 soup = BeautifulSoup(r.text.encode("utf-8"))
                 
+                return_obj = {
+                    publisher : {}
+                }
+                
                 for issue in soup.select(scrape_selectors[publisher]):
                     issue = issue.text.strip()
                     issue = issue.split("\n")
 
                     try:
                         if publisher == "dc":
-                            release_dates["dc"][issue[0].strip().title()] = issue[1][10:] # 10: strips "on sale" text
+                            return_obj[publisher][issue[0].strip().title()] = issue[1][10:]
                             
                         elif publisher == "image":
-                            release_dates["image"][issue[0]] = issue[1]
+                            return_obj[publisher][issue[0]] = issue[1]
                             
                     except Exception as e:
                         print "unable to find issue info on %s" % url
-                        print e
+                        print type(e)
 
                 print "ok"
+                return return_obj
                 
             except Exception as e:
                 print "unable to parse %s" % url
