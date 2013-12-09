@@ -13,32 +13,32 @@ these are available using pip
 ## how do i use this?
 add a comic
 ```
---add -p publisher -t title -u uri
+comical.py --add -p publisher -t title -u uri
 ```
 
 uri? huh?
 ```
---info
+comical.py --info
 ```
 
 remove a comic
 ```
---remove -p publisher -t title
+comical.py --remove -p publisher -t title
 ```
 
 view your comics
 ```
---list
+comical.py --list
 ```
 
 scan and import all comics
 ```
---scan
+comical.py --scan
 ```
 
 scan and import a single comic
 ```
---scan -p publisher -t title
+comical.py --scan -p publisher -t title
 ```
 
 ##### comiCal uses oAuth2 to authenticate with your google account
