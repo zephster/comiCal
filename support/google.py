@@ -16,6 +16,11 @@ class google_api:
 	    "client_secret" : "",
 	    "redirect_uris" : ["urn:ietf:wg:oauth:2.0:oob","oob"]
 	}
+	
+	def __init__(self):
+		if not self.oauth["client_id"] or not self.oauth["client_secret"]:
+			print "invalid oauth credentials"
+			exit()
 
 
 	# checks for the presence of the comiCal calendar. if not, creates it using create_comical_calendar
@@ -37,7 +42,8 @@ class google_api:
 	            return self.create_comical_calendar()
 	    except Exception as e:
 	        print "error fetching google calendar list"
-	        print e
+	        print "message: ", e
+	        exit()
 	    
 	    print "ok"    
 	    return cal_present
