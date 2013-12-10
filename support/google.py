@@ -1,6 +1,5 @@
 """
-comiCal google class
-by brandon sachs
+comiCal google.py
 """
 import util
 
@@ -9,10 +8,12 @@ class google_api:
 	g_api_obj           = None
 	comiCal_calendar_id = None
 
+	# https://cloud.google.com/console
+	# you need to register your own app
 	oauth = {
 	    "scope"         : "https://www.googleapis.com/auth/calendar",
-	    "client_id"     : "488080564532-iqr034it5tp32raunksro01bap1op3oi.apps.googleusercontent.com",
-	    "client_secret" : "SRv6OZtPGK7_VvowZFN2LxWa",
+	    "client_id"     : "",
+	    "client_secret" : "",
 	    "redirect_uris" : ["urn:ietf:wg:oauth:2.0:oob","oob"]
 	}
 

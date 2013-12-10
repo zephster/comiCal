@@ -5,13 +5,13 @@ from time import strftime, strptime
 import cPickle as pickle
 
 # convert date formats between publishers/google
-date_format = {
-    "dc"    : "%b %d %Y",
-    "image" : "%B %d, %Y",
-    "marvel": "%B %d, %Y",
-    "google": "%Y-%m-%d"
-}
 def convert_date(publisher, date, target):
+    date_format = {
+        "dc"    : "%b %d %Y",
+        "image" : "%B %d, %Y",
+        "marvel": "%B %d, %Y",
+        "google": "%Y-%m-%d"
+    }
     date = strptime(date, date_format[publisher])
     date = strftime(date_format[target], date)
     return date
