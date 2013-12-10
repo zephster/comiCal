@@ -308,76 +308,83 @@ class comiCal:
     Scrape Marvel
     """
     def scrape_marvel(self, comic_title, url, **args):
-        if not args.get('verify'):
-            print "marvel - getting resources for %s..." % comic_title.title(),
-            
-        last_issues = {}
-        
-        return_obj = {
-            "marvel": {}
-        }
-
-        try:
-            r = requests.get(url, headers=self.request_headers)
-
-            if r.status_code == 404:
-                if not args.get('verify'):
-                    print "error: url %s not found" % url
-                else:
-                    print "url not found"
-                exit()
-            else:
-                if args.get('verify'):
-                    print "ok"
-                    return
-
-            try:
-                soup = BeautifulSoup(r.text.encode("utf-8"))
-
-                count = 0
-                for issue in soup.select(self.scrape_selectors["marvel_list"]):
-                    if count >= c.marvel_get_last_issues:
-                        break
-                    issue_url = issue.get('href').strip()
-                    last_issues["%s #%s" % (comic_title, issue_url[-2:])] = issue_url
-                    count += 1
-
-                print "ok"
-
-            except Exception as e:
-                print "error parsing past issue url %s" % url
-                print e
-
-        except Exception as e:
-            print "error gathering previous issue information"
-            print e
-            
-        
-        for title, url in last_issues.iteritems():
-            print "marvel - getting release info for %s..." % title,
-            url = self.comic_base_urls["marvel"][:-15]+url
-
+        def get_latest_issues(url, **args):
+            if not args.get('verify'):
+                print "marvel - getting resources for %s..." % comic_title.title(),
+                
+            last_issues = {}
             try:
                 r = requests.get(url, headers=self.request_headers)
 
                 if r.status_code == 404:
-                    print "error: url %s not found" % url
+                    if not args.get('verify'):
+                        print "error: url %s not found" % url
+                    else:
+                        print "url not found"
+                    exit()
+                else:
+                    if args.get('verify'):
+                        print "ok"
+                        return
+
+                try:
+                    soup = BeautifulSoup(r.text.encode("utf-8"))
+
+                    count = 0
+                    for issue in soup.select(self.scrape_selectors["marvel_list"]):
+                        if count >= self.marvel_get_last_issues:
+                            break
+                        issue_url = issue.get('href').strip()
+                        last_issues["%s #%s" % (comic_title, issue_url[-2:])] = issue_url
+                        count += 1
+
+                    print "ok"
+                    return last_issues
+
+                except Exception as e:
+                    print "error parsing past issue url %s" % url
+                    print e
                     exit()
 
-                soup = BeautifulSoup(r.text.encode("utf-8"))
-
-                for info in soup.select(self.scrape_selectors["marvel_release"]):
-                    info = info.text.strip().split("\n")
-                    date = info[0][11:]
-                    return_obj["marvel"][title] = date
-                    print "ok"
-
             except Exception as e:
-                print "unable to fetch issue info %s" % title
+                print "error gathering previous issue information"
                 print e
                 exit()
-                
-        return return_obj
+            
+        
+        def get_issue_info(last_issues):
+            return_obj = {
+                "marvel": {}
+            }
+            
+            for title, url in last_issues.iteritems():
+                print "marvel - getting release info for %s..." % title,
+                url = self.comic_base_urls["marvel"][:-15]+url
+
+                try:
+                    r = requests.get(url, headers=self.request_headers)
+
+                    if r.status_code == 404:
+                        print "error: url %s not found" % url
+                        exit()
+
+                    soup = BeautifulSoup(r.text.encode("utf-8"))
+
+                    for info in soup.select(self.scrape_selectors["marvel_release"]):
+                        info = info.text.strip().split("\n")
+                        date = info[0][11:]
+                        return_obj["marvel"][title] = date
+                        print "ok"
+
+                except Exception as e:
+                    print "unable to fetch issue info %s" % title
+                    print e
+                    exit()
+                    
+            return return_obj
+                    
+        last_issues = get_latest_issues(url, **args)
+        return get_issue_info(last_issues)
     
 
 
