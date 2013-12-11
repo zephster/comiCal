@@ -358,7 +358,7 @@ class comiCal:
             }
             
             for title, url in last_issues.iteritems():
-                print "marvel - getting release info for %s..." % title,
+                print "marvel - getting release info for %s..." % title.title(),
                 url = self.comic_base_urls["marvel"][:-15]+url
 
                 try:
