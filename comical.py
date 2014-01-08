@@ -139,8 +139,12 @@ class comiCal:
     def scan(self, args):
         # human centipede: first sequence
         print "------------------------------"
-        print "      comiCal starting!"
+        print "      comiCal starting"
         print "------------------------------"
+
+        # track stats
+        class stats:
+            adds, mods = 0, 0
         
         # load comics from saved. optionally parse args
         def load_comics(args):
@@ -203,6 +207,7 @@ class comiCal:
                                                                          new_date = search_result["new_date"])
                         if update_status:
                             print "ok. new date: %s" % update_status["new_date"]
+                            stats.mods += 1
                         else:
                             print "error updating event :-("
 
@@ -214,6 +219,7 @@ class comiCal:
                                                                     publisher = publisher[0])
                         if insert_status:
                             print "ok" #" event_id: %s" % insert_status
+                            stats.adds += 1
                         else:
                             print "error creating event :-("
 
@@ -238,7 +244,11 @@ class comiCal:
         else:
             print "not authed!"
             
-        print "done!"
+        print "\n------------------------------"
+        print "      comiCal finished"
+        print "%d new events, %d updated events" % (stats.adds, stats.mods)
+        print "------------------------------"
+        # todo: print stats here, like 1 additions, 2 modifications
         
 
     """
@@ -353,7 +363,7 @@ class comiCal:
             return_obj = {
                 "marvel": {}
             }
-            
+
             if not verifying:
                 for title, url in last_issues.iteritems():
                     print "marvel - getting release info for %s..." % title.title(),
