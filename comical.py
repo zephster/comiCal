@@ -349,39 +349,40 @@ class comiCal:
                 exit()
             
         
-        def get_issue_info(last_issues):
+        def get_issue_info(last_issues, verifying):
             return_obj = {
                 "marvel": {}
             }
             
-            for title, url in last_issues.iteritems():
-                print "marvel - getting release info for %s..." % title.title(),
-                url = self.comic_base_urls["marvel"][:-15]+url
+            if not verifying:
+                for title, url in last_issues.iteritems():
+                    print "marvel - getting release info for %s..." % title.title(),
+                    url = self.comic_base_urls["marvel"][:-15]+url
 
-                try:
-                    r = requests.get(url, headers=self.request_headers)
+                    try:
+                        r = requests.get(url, headers=self.request_headers)
 
-                    if r.status_code == 404:
-                        print "error: url %s not found" % url
+                        if r.status_code == 404:
+                            print "error: url %s not found" % url
+                            exit()
+
+                        soup = BeautifulSoup(r.text.encode("utf-8"))
+
+                        for info in soup.select(self.scrape_selectors["marvel_release"]):
+                            info = info.text.strip().split("\n")
+                            date = info[0][11:]
+                            return_obj["marvel"][title] = date
+                            print "ok"
+
+                    except Exception as e:
+                        print "unable to fetch issue info %s" % title
+                        print e
                         exit()
-
-                    soup = BeautifulSoup(r.text.encode("utf-8"))
-
-                    for info in soup.select(self.scrape_selectors["marvel_release"]):
-                        info = info.text.strip().split("\n")
-                        date = info[0][11:]
-                        return_obj["marvel"][title] = date
-                        print "ok"
-
-                except Exception as e:
-                    print "unable to fetch issue info %s" % title
-                    print e
-                    exit()
-                    
-            return return_obj
+                        
+                return return_obj
                     
         last_issues = get_latest_issues(url, **args)
-        return get_issue_info(last_issues)
+        return get_issue_info(last_issues, args.get('verify'))
     
 
 
