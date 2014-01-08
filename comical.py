@@ -79,9 +79,6 @@ class comiCal:
             exit()
         if not args.title:
             print "missing -t parameter (title)"
-            i 
-            dont
-            kno
             exit()
         if not args.uri:
             print "missing -u parameter (uri)"
