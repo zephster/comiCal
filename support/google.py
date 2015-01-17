@@ -90,7 +90,7 @@ class google_api:
 	                "action"  : "update",
 	                "new_date": latest_release_date_gcal,
 	                "event_id": result["id"]
-	                }
+	            }
 	        else:
 	            return {
 	                "action": None,

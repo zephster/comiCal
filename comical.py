@@ -342,7 +342,13 @@ class comiCal:
                         if count >= self.marvel_get_last_issues:
                             break
                         issue_url = issue.get('href').strip()
-                        last_issues["%s #%s" % (comic_title, issue_url[-2:])] = issue_url
+
+                        try:
+                            issue_num = int(issue_url[-2:])
+                        except ValueError:
+                            issue_num = issue_url[-2:][1]
+
+                        last_issues["%s #%s" % (comic_title, issue_num)] = issue_url
                         count += 1
 
                     print "ok"
