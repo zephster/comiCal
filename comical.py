@@ -346,7 +346,11 @@ class comiCal:
                         try:
                             issue_num = int(issue_url[-2:])
                         except ValueError:
-                            issue_num = issue_url[-2:][1]
+                            # some issues have periods in them (eg. 18.1, 18.2)
+                            if issue_url[-2:][0] == ".":
+                                issue_num = issue_url[-4:]
+                            else:
+                                issue_num = issue_url[-2:][1]
 
                         last_issues["%s #%s" % (comic_title, issue_num)] = issue_url
                         count += 1
