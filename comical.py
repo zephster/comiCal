@@ -343,6 +343,12 @@ class comiCal:
                             break
                         issue_url = issue.get('href').strip()
 
+                        # for some reason, this gets the absolute url of the link href
+                        # only on certain comics (see Deadpool 2012), even when the
+                        # actual html markup on the page uses relative links.
+                        if issue_url[:17] == "http://marvel.com":
+                            issue_url = issue_url[17:]
+
                         try:
                             issue_num = int(issue_url[-2:])
                         except ValueError:
